@@ -1,0 +1,1639 @@
+<!doctype html>
+<html lang="ja">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>happytyping</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Kosugi+Maru&display=swap" rel="stylesheet">
+    <style>
+      * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+      }
+
+      body {
+        background: linear-gradient(
+          135deg,
+          #1a0a2e 0%,
+          #16213e 50%,
+          #0f3460 100%
+        );
+        min-height: 100vh;
+        font-family: "Segoe UI", sans-serif;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        overflow: hidden;
+        user-select: none;
+      }
+
+      #game-wrapper {
+        position: relative;
+        z-index: 20;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        transition: opacity 0.3s ease;
+        width: 100%;
+      }
+
+      h1 {
+        position: fixed;
+        top: 12px;
+        left: 16px;
+        color: #ff9de2;
+        font-size: 1rem;
+        text-shadow: 0 0 10px #ff6eb4, 2px 2px 8px rgba(0,0,0,0.8);
+        letter-spacing: 0.1em;
+        z-index: 30;
+        margin: 0;
+      }
+
+      #phrase-display {
+        display: flex;
+        gap: 8px;
+        flex-wrap: wrap;
+        justify-content: center;
+        margin-bottom: 2rem;
+        padding: 20px;
+        min-height: 190px;
+        align-content: center;
+      }
+
+      .char-box {
+        position: relative;
+        width: 60px;
+        height: 70px;
+        background: rgba(20, 10, 40, 0.82);
+        border: 2px solid rgba(255, 255, 255, 0.35);
+        border-radius: 12px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 1.5rem;
+        font-weight: bold;
+        color: #eee;
+        overflow: visible;
+        transition: border-color 0.2s;
+        box-shadow: 0 4px 15px rgba(0, 0, 0, 0.5);
+      }
+
+      .char-box.current {
+        border-color: #ff9de2;
+        background: rgba(80, 20, 60, 0.88);
+        box-shadow: 0 0 20px rgba(255, 157, 226, 0.5), 0 4px 15px rgba(0,0,0,0.5);
+        animation: pulse 0.8s ease-in-out infinite;
+      }
+
+      .char-box.done {
+        border-color: #7fff9d;
+        background: rgba(10, 50, 30, 0.88);
+        color: #7fff9d;
+      }
+
+      .char-box.wrong {
+        border-color: #ff6b6b;
+        background: rgba(80, 10, 10, 0.88);
+        animation: shake 0.3s ease-in-out;
+      }
+
+      @keyframes pulse {
+        0%,
+        100% {
+          transform: scale(1);
+        }
+        50% {
+          transform: scale(1.05);
+        }
+      }
+
+      @keyframes shake {
+        0%,
+        100% {
+          transform: translateX(0);
+        }
+        25% {
+          transform: translateX(-4px);
+        }
+        75% {
+          transform: translateX(4px);
+        }
+      }
+
+      /* 妹キャラが箱から飛び出す */
+      .imouto-popup {
+        position: absolute;
+        bottom: 100%;
+        left: 50%;
+        transform: translateX(-50%) translateY(100%);
+        width: 80px;
+        height: 90px;
+        pointer-events: none;
+        z-index: 100;
+        opacity: 0;
+        overflow: hidden; /* 下半身を隠す = 箱から上半身だけ */
+        transition: none;
+      }
+
+      .imouto-popup img {
+        width: 100%;
+        height: auto;
+        position: absolute;
+        bottom: 0;
+        left: 0;
+      }
+
+      .imouto-popup.pop {
+        animation: popUp 1.2s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+      }
+
+      @keyframes popUp {
+        0% {
+          opacity: 0;
+          transform: translateX(-50%) translateY(60%);
+          clip-path: inset(60% 0 0 0);
+        }
+        30% {
+          opacity: 1;
+          transform: translateX(-50%) translateY(0%);
+          clip-path: inset(0% 0 0 0);
+        }
+        70% {
+          opacity: 1;
+          transform: translateX(-50%) translateY(0%);
+          clip-path: inset(0% 0 0 0);
+        }
+        100% {
+          opacity: 0;
+          transform: translateX(-50%) translateY(-20%);
+          clip-path: inset(0% 0 0 0);
+        }
+      }
+
+      /* セリフバブル */
+      .speech-bubble {
+        position: absolute;
+        bottom: calc(100% + 90px);
+        left: 50%;
+        transform: translateX(-50%);
+        background: white;
+        color: #333;
+        border-radius: 12px;
+        padding: 6px 10px;
+        font-size: 0.65rem;
+        white-space: nowrap;
+        box-shadow: 0 2px 10px rgba(0, 0, 0, 0.3);
+        opacity: 0;
+        pointer-events: none;
+        z-index: 101;
+      }
+
+      .speech-bubble::after {
+        content: "";
+        position: absolute;
+        top: 100%;
+        left: 50%;
+        transform: translateX(-50%);
+        border: 6px solid transparent;
+        border-top-color: white;
+      }
+
+      .speech-bubble.pop {
+        animation: bubblePop 1.4s ease forwards;
+      }
+
+      @keyframes bubblePop {
+        0% {
+          opacity: 0;
+        }
+        20% {
+          opacity: 1;
+        }
+        70% {
+          opacity: 1;
+        }
+        100% {
+          opacity: 0;
+        }
+      }
+
+      #input-area {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 16px;
+      }
+
+      #type-input {
+        display: none;
+      }
+
+      #type-input:focus {
+        border-color: #ff9de2;
+        background: rgba(255, 255, 255, 0.15);
+      }
+
+      #score-bar {
+        display: flex;
+        gap: 24px;
+        color: rgba(255, 255, 255, 0.9);
+        font-size: 0.9rem;
+        padding: 8px 20px;
+        text-shadow: 1px 1px 4px rgba(0,0,0,0.9), 0 0 8px rgba(0,0,0,0.8);
+      }
+
+      #score-display {
+        position: fixed;
+        top: 10px;
+        left: 50%;
+        transform: translateX(-50%);
+        z-index: 30;
+        font-size: 3rem;
+        font-weight: 900;
+        color: #ff6eb4;
+        letter-spacing: 0.05em;
+        text-shadow:
+          0 0 0 2px #000,
+          2px 2px 0 #000,
+          -2px -2px 0 #000,
+          2px -2px 0 #000,
+          -2px 2px 0 #000,
+          3px 3px 0 rgba(0,0,0,0.5);
+        -webkit-text-stroke: 2px #000;
+        pointer-events: none;
+      }
+
+      #score-display .score-label {
+        font-size: 0.75rem;
+        font-weight: 700;
+        color: rgba(255,255,255,0.7);
+        -webkit-text-stroke: 1px #000;
+        letter-spacing: 0.1em;
+        display: block;
+        text-align: center;
+        margin-bottom: 2px;
+      }
+
+      .score-item span {
+        color: #ff9de2;
+        font-weight: bold;
+        font-size: 1.1rem;
+      }
+
+      #next-btn {
+        background: linear-gradient(135deg, #ff6eb4, #ff9de2);
+        border: none;
+        border-radius: 12px;
+        padding: 10px 28px;
+        color: white;
+        font-size: 1rem;
+        cursor: pointer;
+        font-weight: bold;
+        transition:
+          transform 0.2s,
+          box-shadow 0.2s;
+        display: none;
+      }
+
+      #next-btn:hover {
+        transform: scale(1.05);
+        box-shadow: 0 4px 20px rgba(255, 110, 180, 0.5);
+      }
+
+      #progress {
+        display: none;
+      }
+
+      /* 日本語訳表示 */
+      #ja-display {
+        text-align: center;
+        color: rgba(255, 220, 245, 0.95);
+        font-size: 1.15rem;
+        font-family: "Kosugi Maru", "Hiragino Maru Gothic Pro", "BIZ UDPGothic", sans-serif;
+        font-weight: bold;
+        height: 2.2em;
+        width: 80vw;
+        max-width: 700px;
+        margin-top: -1rem;
+        margin-bottom: 1.2rem;
+        letter-spacing: 0.08em;
+        opacity: 1;
+        transition: color 0.3s ease;
+        background: rgba(20, 10, 40, 0.55);
+        padding: 6px 20px;
+        border-radius: 8px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        box-sizing: border-box;
+      }
+      #ja-display.visible {
+        color: rgba(255, 220, 245, 0.95);
+      }
+
+      /* デバッグモード表示 */
+      #debug-badge {
+        position: fixed;
+        top: 10px;
+        right: 14px;
+        background: rgba(255, 80, 80, 0.85);
+        color: white;
+        font-size: 0.7rem;
+        font-weight: bold;
+        padding: 3px 8px;
+        border-radius: 6px;
+        display: none;
+        z-index: 9999;
+        letter-spacing: 0.05em;
+      }
+
+      /* リザルト画面 */
+      @import url('https://fonts.googleapis.com/css2?family=Klee+One:wght@400;600&family=Kaisei+Opti:wght@400;700&display=swap');
+
+      #gameover-screen {
+        display: none;
+        position: fixed;
+        inset: 0;
+        z-index: 1000;
+        overflow: hidden;
+      }
+
+      /* ウォーム背景 */
+      #result-bg {
+        position: absolute;
+        inset: 0;
+        background: #fdf6ee;
+        background-image:
+          radial-gradient(ellipse at 20% 50%, #fde8d0 0%, transparent 60%),
+          radial-gradient(ellipse at 80% 20%, #fddfc4 0%, transparent 50%),
+          radial-gradient(ellipse at 60% 80%, #f9e4d4 0%, transparent 50%);
+      }
+
+      /* 便箋線（左55%のみ） */
+      #result-lines {
+        position: absolute;
+        top: 0; left: 0;
+        width: 55%; height: 100%;
+        background-image: repeating-linear-gradient(
+          transparent, transparent 47px,
+          #e8c9a0 47px, #e8c9a0 48px
+        );
+        opacity: 0.3;
+        pointer-events: none;
+      }
+
+      /* コンテンツ */
+      #result-content {
+        position: relative;
+        z-index: 2;
+        width: 100%; height: 100%;
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+        padding: 48px 80px;
+        font-family: 'Kaisei Opti', serif;
+      }
+
+      #result-title {
+        font-size: 0.85rem;
+        letter-spacing: 0.45em;
+        color: #b07a50;
+        margin-bottom: 10px;
+        opacity: 0;
+        animation: resUp 0.5s ease 0.1s forwards;
+      }
+
+      #result-score-label {
+        font-size: 0.8rem;
+        letter-spacing: 0.3em;
+        color: #c49a6c;
+        margin-bottom: 2px;
+        opacity: 0;
+        animation: resUp 0.5s ease 0.2s forwards;
+      }
+
+      #result-score-value {
+        font-family: 'Kaisei Opti', serif;
+        font-size: clamp(3.2rem, 7vw, 5.5rem);
+        font-weight: 700;
+        color: #5c3d1e;
+        line-height: 1;
+        text-shadow: 3px 3px 0 #e8c9a0, 6px 6px 0 rgba(176,122,80,0.2);
+        margin-bottom: 32px;
+        opacity: 0;
+        animation: resUp 0.6s ease 0.25s forwards;
+      }
+
+      #result-stats {
+        display: flex;
+        flex-direction: column;
+        max-width: 460px;
+        margin-bottom: 36px;
+        opacity: 0;
+        animation: resUp 0.6s ease 0.4s forwards;
+      }
+
+      .result-stat-row {
+        display: flex;
+        align-items: baseline;
+        padding: 9px 0;
+        border-bottom: 1.5px solid #d4a96a;
+        gap: 12px;
+      }
+      .result-stat-row:first-child { border-top: 1.5px solid #d4a96a; }
+
+      .result-stat-label {
+        font-size: 0.78rem;
+        letter-spacing: 0.18em;
+        color: #a07848;
+        width: 120px;
+        flex-shrink: 0;
+      }
+      .result-stat-val {
+        font-family: 'Kaisei Opti', serif;
+        font-size: 1.35rem;
+        font-weight: 700;
+        color: #5c3d1e;
+      }
+      .result-stat-unit {
+        font-size: 0.72rem;
+        color: #a07848;
+        margin-left: 3px;
+      }
+
+      #result-comment {
+        font-family: 'Klee One', cursive;
+        font-size: clamp(0.95rem, 1.8vw, 1.2rem);
+        color: #7a4f2e;
+        line-height: 2;
+        max-width: 440px;
+        position: relative;
+        padding-left: 20px;
+        opacity: 0;
+        animation: resUp 0.6s ease 0.6s forwards;
+      }
+      #result-comment::before {
+        content: '❝';
+        position: absolute;
+        left: 0; top: -2px;
+        font-size: 1.1rem;
+        color: #c49a6c;
+      }
+
+      #result-buttons {
+        display: flex;
+        gap: 14px;
+        margin-top: 28px;
+        opacity: 0;
+        animation: resUp 0.6s ease 0.8s forwards;
+      }
+
+      .result-btn {
+        padding: 11px 30px;
+        border: 2px solid #c49a6c;
+        background: transparent;
+        color: #7a4f2e;
+        font-family: 'Kaisei Opti', serif;
+        font-size: 0.88rem;
+        letter-spacing: 0.2em;
+        cursor: pointer;
+        transition: all 0.2s;
+        border-radius: 2px;
+      }
+      .result-btn:hover { background: #c49a6c; color: #fdf6ee; }
+      .result-btn-primary { background: #c49a6c; color: #fdf6ee; }
+      .result-btn-primary:hover { background: #a07848; border-color: #a07848; }
+
+      /* 妹キャラ */
+      #result-sister {
+        position: absolute;
+        top: 50%;
+        right: -20px;
+        transform: translateY(-50%);
+        height: min(75vh, 600px);
+        width: auto;
+        pointer-events: none;
+        opacity: 0;
+        animation: resSister 0.8s cubic-bezier(0.22,1,0.36,1) 0.3s forwards;
+        z-index: 3;
+      }
+
+      @keyframes resUp {
+        from { opacity: 0; transform: translateY(14px); }
+        to   { opacity: 1; transform: translateY(0); }
+      }
+      @keyframes resSister {
+        from { opacity: 0; transform: translateY(calc(-50% + 40px)); }
+        to   { opacity: 1; transform: translateY(-50%); }
+      }
+
+      /* sparkle effect */
+      .sparkle {
+        position: fixed;
+        pointer-events: none;
+        font-size: 1.2rem;
+        animation: sparkleAnim 0.8s ease forwards;
+        z-index: 200;
+      }
+      @keyframes sparkleAnim {
+        0% {
+          opacity: 1;
+          transform: translateY(0) scale(1);
+        }
+        100% {
+          opacity: 0;
+          transform: translateY(-60px) scale(1.5);
+        }
+      }
+
+      /* カットインパネル（左右） */
+      .cutin-panel {
+        position: fixed;
+        top: 0;
+        width: 240px;
+        height: 100vh;
+        z-index: 10;
+        pointer-events: none;
+        overflow: hidden;
+      }
+      #cutin-left {
+        left: 0;
+        transform: translateX(-100%);
+      }
+      #cutin-right {
+        right: 0;
+        transform: translateX(100%);
+      }
+      .cutin-panel img {
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+        object-position: center top;
+      }
+      .cutin-panel.slide-in-left {
+        animation: cutinSlideLeft 0.35s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+      }
+      .cutin-panel.slide-in-right {
+        animation: cutinSlideRight 0.35s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+      }
+      .cutin-panel.slide-out-left {
+        animation: cutinOutLeft 0.3s ease-in forwards;
+      }
+      .cutin-panel.slide-out-right {
+        animation: cutinOutRight 0.3s ease-in forwards;
+      }
+      @keyframes cutinSlideLeft {
+        from { transform: translateX(-100%); }
+        to   { transform: translateX(0); }
+      }
+      @keyframes cutinSlideRight {
+        from { transform: translateX(100%); }
+        to   { transform: translateX(0); }
+      }
+      @keyframes cutinOutLeft {
+        from { transform: translateX(0); }
+        to   { transform: translateX(-100%); }
+      }
+      @keyframes cutinOutRight {
+        from { transform: translateX(0); }
+        to   { transform: translateX(100%); }
+      }
+
+      /* combo display */
+      #combo-display {
+        text-align: center;
+        min-height: 48px;
+        position: relative;
+        top: -75px;
+        z-index: 9999;
+        margin-bottom: 4px;
+        pointer-events: none;
+      }
+      #combo-display .combo-text {
+        display: inline-block;
+        font-size: 2rem;
+        font-weight: 900;
+        letter-spacing: 0.05em;
+        background: linear-gradient(
+          90deg,
+          #ff6eb4,
+          #ffcc00,
+          #7fff9d,
+          #00d4ff,
+          #ff6eb4
+        );
+        background-size: 300% 100%;
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+        background-clip: text;
+        filter: drop-shadow(0 0 8px rgba(255, 110, 180, 0.7));
+        animation:
+          comboRainbow 1.5s linear infinite,
+          comboPop 0.25s ease-out;
+        opacity: 1;
+        transition: opacity 0.2s;
+      }
+      #combo-display .combo-text.hidden {
+        opacity: 0;
+      }
+      @keyframes comboBurst {
+        0%   { transform: scale(0.5); filter: drop-shadow(0 0 30px rgba(255,220,0,1)); }
+        40%  { transform: scale(2.2); filter: drop-shadow(0 0 40px rgba(255,110,180,1)); }
+        70%  { transform: scale(0.95); }
+        100% { transform: scale(1); filter: drop-shadow(0 0 8px rgba(255,110,180,0.7)); }
+      }
+      @keyframes comboRainbow {
+        0% {
+          background-position: 0% 50%;
+        }
+        100% {
+          background-position: 300% 50%;
+        }
+      }
+      @keyframes comboPop {
+        0% {
+          transform: scale(1.5);
+        }
+        60% {
+          transform: scale(0.9);
+        }
+        100% {
+          transform: scale(1);
+        }
+      }
+
+      /* ===== レベルアップ弾幕オーバーレイ ===== */
+      #levelup-overlay {
+        position: fixed;
+        inset: 0;
+        z-index: 500;
+        pointer-events: none;
+        overflow: hidden;
+        opacity: 0;
+        transition: opacity 0.2s;
+      }
+      #levelup-overlay.active {
+        opacity: 1;
+      }
+      #levelup-overlay.fadeout {
+        opacity: 0;
+        transition: opacity 0.6s;
+      }
+
+      .niko-comment {
+        position: absolute;
+        left: 100vw;
+        white-space: nowrap;
+        font-weight: 900;
+        font-size: 1.4rem;
+        color: #fff;
+        text-shadow:
+          2px 2px 0 #000,
+          -1px -1px 0 #000,
+          1px -1px 0 #000,
+          -1px 1px 0 #000;
+        animation: nikoFlow linear forwards;
+        letter-spacing: 0.05em;
+      }
+
+      @keyframes nikoFlow {
+        0%   { transform: translateX(0); }
+        100% { transform: translateX(calc(-100vw - 100%)); }
+      }
+
+      /* ===== 背景画像スライド ===== */
+      #bg-layer {
+        position: fixed;
+        inset: 0;
+        z-index: 0;
+        overflow: hidden;
+      }
+      .bg-slide {
+        position: absolute;
+        inset: 0;
+        background-size: cover;
+        background-position: center top;
+        background-repeat: no-repeat;
+      }
+      .bg-slide.entering {
+        animation: bgSlideIn 0.7s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+      }
+      @keyframes bgSlideIn {
+        from { transform: translateX(100%); }
+        to   { transform: translateX(0); }
+      }
+      /* ===== LV START ボン演出 ===== */
+      #levelup-banner {
+        position: fixed;
+        inset: 0;
+        z-index: 510;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        pointer-events: none;
+        opacity: 0;
+      }
+      #levelup-banner.bang {
+        animation: bannerBang 1.4s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+      }
+      #levelup-banner .banner-text {
+        font-size: 6rem;
+        font-weight: 900;
+        letter-spacing: 0.05em;
+        color: #fff;
+        text-shadow:
+          0 0 40px currentColor,
+          4px 4px 0 #000,
+          -2px -2px 0 #000;
+        transform: scale(0.1);
+        opacity: 0;
+      }
+      #levelup-banner.bang .banner-text {
+        animation: bannerTextBang 1.4s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+      }
+      @keyframes bannerBang {
+        0%   { opacity: 1; }
+        70%  { opacity: 1; }
+        100% { opacity: 0; }
+      }
+      @keyframes bannerTextBang {
+        0%   { transform: scale(0.1); opacity: 0; }
+        25%  { transform: scale(1.35); opacity: 1; }
+        45%  { transform: scale(0.92); }
+        60%  { transform: scale(1.08); }
+        75%  { transform: scale(1.0);  opacity: 1; }
+        100% { transform: scale(1.0);  opacity: 0; }
+      }
+    </style>
+  </head>
+  <body>
+    <!-- 背景レイヤー -->
+    <div id="bg-layer"></div>
+
+    <!-- レベルアップ弾幕オーバーレイ -->
+    <div id="levelup-overlay"></div>
+
+    <!-- LV START ボン！バナー -->
+    <div id="levelup-banner"><span class="banner-text"></span></div>
+
+    <!-- スコア表示（上中央） -->
+    <div id="score-display">
+      <span id="score">0</span>
+      <span style="font-size:0.4em; margin-left:1em; opacity:0.7;">ミス: <span id="miss-new" style="font-size:1.6em;">0</span></span>
+    </div>
+
+    <h1>happy typing</h1>
+    <div id="debug-badge">🛠 DEBUGモード</div>
+
+    <!-- カットインパネル（左右） -->
+    <div id="cutin-left" class="cutin-panel"><img id="cutin-left-img" src="" alt=""></div>
+    <div id="cutin-right" class="cutin-panel"><img id="cutin-right-img" src="" alt=""></div>
+
+    <!-- リザルト画面 -->
+    <div id="gameover-screen">
+      <div id="result-bg"></div>
+      <div id="result-lines"></div>
+      <img id="result-sister" src="Sister_results.png" alt="妹">
+      <div id="result-content">
+        <div id="result-title">R E S U L T</div>
+        <div id="result-score-label">SCORE</div>
+        <div id="result-score-value">0</div>
+        <div id="result-stats">
+          <div class="result-stat-row">
+            <span class="result-stat-label">MAX COMBO</span>
+            <span class="result-stat-val" id="rs-combo">0</span>
+            <span class="result-stat-unit">combo</span>
+          </div>
+          <div class="result-stat-row">
+            <span class="result-stat-label">MISS</span>
+            <span class="result-stat-val" id="rs-miss">0</span>
+            <span class="result-stat-unit">times</span>
+          </div>
+          <div class="result-stat-row">
+            <span class="result-stat-label">到達レベル</span>
+            <span class="result-stat-val" id="rs-level">Lv.1</span>
+          </div>
+          <div class="result-stat-row">
+            <span class="result-stat-label">総入力文字</span>
+            <span class="result-stat-val" id="rs-chars">0</span>
+            <span class="result-stat-unit">chars</span>
+          </div>
+        </div>
+        <div id="result-comment"></div>
+        <div id="result-buttons">
+          <button class="result-btn result-btn-primary" onclick="restartGame()">もう一回</button>
+        </div>
+      </div>
+    </div>
+
+    <div id="game-wrapper">
+    <div id="combo-display"><span class="combo-text hidden"></span></div>
+
+    <div id="phrase-display"></div>
+    <div id="ja-display"></div>
+
+    <div id="input-area">
+      <div id="score-bar">
+        <div class="score-item" style="display:none">Lv: <span id="level-display">1</span></div>
+        <div class="score-item" style="display:none">ミス: <span id="miss">0</span></div>
+        <div class="score-item" id="next-level-item" style="display:none">次のLvまで: <span id="next-level-chars">200</span>文字</div>
+      </div>
+      <input
+        type="text"
+        id="type-input"
+        placeholder="ここに入力してね！"
+        autocomplete="off"
+        autocorrect="off"
+        autocapitalize="off"
+        spellcheck="false"
+      />
+      <div id="progress"></div>
+      <button id="next-btn" onclick="nextPhrase()">次へ ▶</button>
+    </div>
+    </div>
+
+    <script src="phrases.js"></script>
+    <script>
+
+
+      const CHARS = Array.from({ length: 29 }, (_, i) =>
+        `chars/tile${String(i).padStart(3, "0")}.png`
+      );
+
+      // ===== レベルアップ弾幕コメント =====
+      const LEVELUP_COMMENTS = [
+        "レベルアップ！！！", "やったー！！", "お兄ちゃんすごい！", "天才！！",
+        "LEVEL UP!!!", "えっ待って強すぎ", "うそでしょ！？", "まじか〜！",
+        "ぴょんぴょん！！", "すごいすごいすごい！", "お兄ちゃん天才じゃん！",
+        "次のステージだよ！！", "どんどん行こう！", "やばい！やばい！",
+        "もっと速くなった！？", "信じてたよ！！", "私も嬉しい！！",
+        "神！！！", "最強すぎる！！", "おめでと〜！！",
+        "なんで急に上手くなってるの！？", "え、ちょっと待って！！",
+        "ほんとにやるじゃん！", "感動した！！", "一緒に頑張ろ！",
+        "次もいけるよ！！", "ぶっちぎりじゃん！", "ドンドン上がっていこ！",
+        "すごすぎてびっくり！！", "お兄ちゃんのこと見直した！",
+        "ずっとついてくから！！", "カッコいい！！", "やばすぎワロタ",
+        "嘘でしょ爆速！？", "伝説の始まりじゃん！！", "🎉🎉🎉🎉🎉",
+        "✨✨✨✨", "SUGOI！！！", "もう止まらない！！",
+      ];
+
+      const LEVEL_BG = {
+        lv1:  'bg/lv1.png',
+        lv2:  'bg/lv2.png',
+        lv3:  'bg/lv3.png',
+        lv4:  'bg/lv4.png',
+        final:'bg/lv5.png',
+      };
+
+      const LEVEL_COLORS = {
+        lv1:  '#ff9de2',
+        lv2:  '#ffcc00',
+        lv3:  '#7fff9d',
+        lv4:  '#00d4ff',
+        final:'#ff6eb4',
+      };
+
+      let levelupActive = false;
+
+      function triggerLevelUpEffect(newLevel, onComplete) {
+        if (levelupActive) return;
+        levelupActive = true;
+        phraseCompleted = true; // 演出中は入力ブロック
+
+        // ゲームエリアを非表示
+        document.getElementById('game-wrapper').style.opacity = '0';
+
+        const fallbackColors = {
+          lv1:  'linear-gradient(135deg,#1a0a2e,#16213e,#0f3460)',
+          lv2:  'linear-gradient(135deg,#0a1a2e,#1a3a5e,#0f4460)',
+          lv3:  'linear-gradient(135deg,#0a2e1a,#1a5e3a,#0f6040)',
+          lv4:  'linear-gradient(135deg,#2e1a0a,#5e3a1a,#604020)',
+          final:'linear-gradient(135deg,#2e0a1a,#5e1a3a,#600f40)',
+        };
+        const color = LEVEL_COLORS[newLevel] || '#fff';
+
+        // ===== 弾幕コメント発射 =====
+        const overlay = document.getElementById('levelup-overlay');
+        overlay.innerHTML = '';
+        overlay.classList.remove('fadeout');
+        overlay.classList.add('active');
+
+        const ROWS  = 12;
+
+        // レベル別コメント数
+        const TOTAL_MAP = { lv1: 3, lv2: 3, lv3: 10, lv4: 20, final: 55 };
+        const TOTAL = TOTAL_MAP[newLevel] || 10;
+
+        const pool = [];
+        while (pool.length < TOTAL) {
+          const shuffled = [...LEVELUP_COMMENTS].sort(() => Math.random() - 0.5);
+          pool.push(...shuffled);
+        }
+
+        // 各コメントの発射delay・流れ時間を事前に決定
+        const commentData = [];
+        for (let i = 0; i < TOTAL; i++) {
+          const launchDelay = i * 80 + Math.random() * 60;
+          const dur = 2.5 + Math.random() * 3.0; // 2.5〜5.5秒（十分長く）
+          commentData.push({ launchDelay, dur });
+        }
+
+        // 最後のコメントが流れ切る時刻
+        const lastFinish = Math.max(...commentData.map(d => d.launchDelay + d.dur * 1000));
+
+        // 背景スライドは「最後のコメントが流れ切る直前（80%地点）」に追いかけるように発火
+        const bgSlideDelay = lastFinish * 0.80;
+
+        commentData.forEach((d, i) => {
+          setTimeout(() => {
+            const el = document.createElement('div');
+            el.className = 'niko-comment';
+            el.textContent = pool[i % pool.length];
+
+            const row = i % ROWS;
+            const topPct = (row / ROWS) * 90 + 2 + (Math.random() * 5 - 2.5);
+            el.style.top = topPct + 'vh';
+            el.style.animationDuration = d.dur + 's';
+
+            const palette = [color, '#ffffff', '#ffff44', '#ffccee', '#aaffcc', '#cceeff'];
+            el.style.color = palette[Math.floor(Math.random() * palette.length)];
+            el.style.fontSize = (0.9 + Math.random() * 1.3) + 'rem';
+
+            overlay.appendChild(el);
+            el.addEventListener('animationend', () => el.remove());
+          }, d.launchDelay);
+        });
+
+        // ===== 最後のコメントを追いかけるように背景スライドイン =====
+        setTimeout(() => {
+          const bgLayer = document.getElementById('bg-layer');
+          bgLayer.querySelectorAll('.bg-slide').forEach(s => s.classList.remove('entering'));
+
+          const newSlide = document.createElement('div');
+          newSlide.className = 'bg-slide entering';
+          newSlide.style.background = fallbackColors[newLevel];
+          newSlide.style.backgroundImage = `url('${LEVEL_BG[newLevel]}')`;
+          newSlide.style.backgroundSize = 'cover';
+          newSlide.style.backgroundRepeat = 'no-repeat';
+          newSlide.style.backgroundPosition = 'center top';
+          bgLayer.appendChild(newSlide);
+
+          // 古いスライド削除
+          setTimeout(() => {
+            bgLayer.querySelectorAll('.bg-slide').forEach((s, i, arr) => {
+              if (i < arr.length - 1) s.remove();
+            });
+          }, 800);
+        }, bgSlideDelay);
+
+        // ===== 全コメント流れ切った後：オーバーレイ消去 → ボン！ =====
+        setTimeout(() => {
+          overlay.classList.add('fadeout');
+          setTimeout(() => {
+            overlay.classList.remove('active', 'fadeout');
+            overlay.innerHTML = '';
+          }, 400);
+
+          // LV START ボン！テキスト設定
+          const labelMap = { lv1:'LV 1', lv2:'LV 2', lv3:'LV 3', lv4:'LV 4', final:'FINAL' };
+          const banner = document.getElementById('levelup-banner');
+          const bannerText = banner.querySelector('.banner-text');
+          bannerText.textContent = (labelMap[newLevel] || newLevel.toUpperCase()) + ' START!!';
+          bannerText.style.color = color;
+          bannerText.style.textShadow = `0 0 60px ${color}, 0 0 20px ${color}, 4px 4px 0 #000, -2px -2px 0 #000`;
+
+          // ボン！アニメ発火
+          banner.classList.remove('bang');
+          void banner.offsetWidth;
+          banner.classList.add('bang');
+
+          // ボン演出完了 → ゲームエリア再表示・入力解除・次フレーズスタート
+          setTimeout(() => {
+            banner.classList.remove('bang');
+            document.getElementById('game-wrapper').style.opacity = '1';
+            levelupActive = false;
+            phraseCompleted = false;
+            if (onComplete) onComplete();
+          }, 1400);
+
+        }, lastFinish + 150);
+      }
+
+      const CUTIN_CHARS = Array.from({ length: 5 }, (_, i) =>
+        `cut_in/cutin${String(i).padStart(3, "0")}.png`
+      );
+
+      let cutinTimer = null;
+
+      function triggerCutIn() {
+        // ランダムで左右に別キャラ選ぶ
+        const indices = [...Array(CUTIN_CHARS.length).keys()];
+        const leftIdx = Math.floor(Math.random() * indices.length);
+        let rightIdx = Math.floor(Math.random() * indices.length);
+        if (rightIdx === leftIdx) rightIdx = (rightIdx + 1) % indices.length;
+
+        const leftPanel  = document.getElementById('cutin-left');
+        const rightPanel = document.getElementById('cutin-right');
+        document.getElementById('cutin-left-img').src  = CUTIN_CHARS[leftIdx];
+        document.getElementById('cutin-right-img').src = CUTIN_CHARS[rightIdx];
+
+        // 既存タイマーキャンセル
+        if (cutinTimer) clearTimeout(cutinTimer);
+
+        // スライドイン
+        leftPanel.className  = 'cutin-panel slide-in-left';
+        rightPanel.className = 'cutin-panel slide-in-right';
+
+        // 2秒後にスライドアウト
+        cutinTimer = setTimeout(() => {
+          leftPanel.className  = 'cutin-panel slide-out-left';
+          rightPanel.className = 'cutin-panel slide-out-right';
+          cutinTimer = null;
+        }, 2000);
+      }
+
+      function getRandomChar() {
+        return CHARS[Math.floor(Math.random() * CHARS.length)];
+      }
+
+      // レベル設定（仕様書3）
+      const LEVEL_ORDER = ['lv1', 'lv2', 'lv3', 'lv4', 'final'];
+      const LEVEL_LABELS = { lv1: '1', lv2: '2', lv3: '3', lv4: '4', final: 'FINAL' };
+
+      // コンボ倍率テーブル（仕様書4-2）
+      function getComboMultiplier(combo) {
+        if (combo >= 1000) return 10.0;
+        if (combo >= 200)  return 5.0;
+        if (combo >= 150)  return 3.375;
+        if (combo >= 100)  return 2.25;
+        if (combo >= 50)   return 1.5;
+        return 1.0;
+      }
+
+      function getLevelFromChars(chars) {
+        if (chars >= 2000) return 'final';
+        if (chars >= 1200) return 'lv4';
+        if (chars >= 600)  return 'lv3';
+        if (chars >= 200)  return 'lv2';
+        return 'lv1';
+      }
+
+      const LEVEL_NEXT_THRESHOLD = { lv1: 200, lv2: 600, lv3: 1200, lv4: 2000, final: null };
+
+      function updateNextLevelDisplay() {
+        // 非表示のため何もしない
+      }
+
+      function checkLevelUp(onLeveledUp) {
+        const newLevel = getLevelFromChars(totalChars);
+        if (newLevel === currentLevel) {
+          if (onLeveledUp) onLeveledUp(false); // レベルアップなし
+          return;
+        }
+        currentLevel = newLevel;
+        phrases = [...PHRASES[currentLevel]].sort(() => Math.random() - 0.5);
+        currentPhraseIndex = 0;
+        document.getElementById('level-display').textContent = LEVEL_LABELS[currentLevel];
+        // 演出完了後に呼び出し元へ通知
+        triggerLevelUpEffect(currentLevel, () => {
+          if (onLeveledUp) onLeveledUp(true);
+        });
+      }
+
+      // phrases.jsのPHRASES.lv1を使用
+      let currentLevel = 'lv1';
+      let phrasePool = [...PHRASES[currentLevel]].sort(() => Math.random() - 0.5);
+
+      const IMOUTO_LINES = [
+        "やったー！",
+        "お兄ちゃん見てー！",
+        "できたよ！",
+        "えへへ～",
+        "すごいでしょ？",
+        "もっとやる！",
+        "わーい！",
+        "がんばれ！",
+        "いいね！",
+        "ありがとー！",
+        "やばい最高！",
+        "もう一回！",
+        "余裕だよ！",
+        "やっぱりね！",
+        "ぴょん！",
+        "きゃー！",
+        "だよね！",
+        "さすが！",
+        "うれしい！",
+        "ふふん！",
+        "へへ！",
+        "いえーい！",
+        "まかせて！",
+        "ちょろい！",
+        "お兄ちゃん天才！",
+        "私も天才！",
+        "最高！",
+        "好き！",
+        "やったよ！",
+        "みて！",
+        "できちゃった！",
+        "つよい！",
+        "むふふ～",
+        "ほい！",
+        "いくよ！",
+        "次も！",
+        "がんがん！",
+        "ぐんぐん！",
+        "どんどん！",
+        "ぽん！",
+        "ふぁいと！",
+        "一緒に！",
+        "楽しい！",
+        "もっと！",
+        "うん！",
+        "そうそう！",
+        "ね！",
+        "ほんとほんと！",
+        "わかった！",
+        "任せて！",
+        "あはは！",
+        "えーっと！",
+        "ふふ！",
+        "よし！",
+        "いくぞ！",
+        "ぜったい！",
+        "うそ嘘うそ！",
+        "まじで！",
+        "さいこう！",
+        "たのしー！",
+        "お兄ちゃん遅い！",
+        "私の方が速い！",
+        "ぶー！",
+        "もー！",
+        "ちゃんとみてて！",
+        "集中して！",
+        "間違えないで！",
+        "頑張って！",
+        "やり直し！",
+        "惜しい！",
+        "あと少し！",
+        "もうちょっと！",
+        "ドンマイ！",
+        "次は勝つよ！",
+        "練習あるのみ！",
+        "根性！",
+        "大丈夫！",
+        "信じてるよ！",
+        "絶対できる！",
+        "一緒に頑張ろ！",
+        "ぎゅー！",
+        "なでなで！",
+        "よしよし！",
+        "えらい！",
+        "天才かよ！",
+        "神じゃん！",
+        "無敵！",
+        "最強！",
+        "お兄ちゃんの方が好き！",
+        "ずっと一緒！",
+        "離れないよ！",
+        "ついてくよ！",
+        "じゃーん！",
+        "どや！",
+        "見た？見た？",
+        "すごくない？",
+        "照れてる！",
+        "ちょっとだけね！",
+        "秘密だよ！",
+        "二人だけの！",
+      ];
+
+      let phrases = phrasePool;
+      let currentPhraseIndex = 0;
+      let currentCharIndex = 0;
+      let score = 0;
+      let miss = 0;
+      let combo = 0;
+      let maxCombo = 0;
+      let totalChars = 0;
+      let phraseCompleted = false;
+      let phraseMissed = false;
+      let gameOver = false;
+
+      // デバッグモード（長押し2秒で切替）
+      let debugMode = false;
+      let debugHoldTimer = null;
+      document.addEventListener('keydown', (e) => {
+        if (e.key === 'd' && !e.ctrlKey && !e.altKey && !e.metaKey && !debugHoldTimer) {
+          debugHoldTimer = setTimeout(() => {
+            debugMode = !debugMode;
+            document.getElementById('debug-badge').style.display = debugMode ? 'block' : 'none';
+            debugHoldTimer = null;
+          }, 2000);
+        }
+
+        // デバッグモード中のショートカット
+        if (debugMode && e.shiftKey) {
+          if (e.key === 'ArrowUp') {
+            e.preventDefault();
+            combo += 10;
+            updateComboDisplay();
+            document.getElementById('score').textContent = score;
+          } else if (e.key === 'ArrowDown') {
+            e.preventDefault();
+            totalChars = Math.max(0, totalChars + 10);
+            updateNextLevelDisplay();
+          }
+        }
+      });
+      document.addEventListener('keyup', (e) => {
+        if (e.key === 'd') {
+          clearTimeout(debugHoldTimer);
+          debugHoldTimer = null;
+        }
+      });
+
+      function getRandomLine() {
+        return IMOUTO_LINES[Math.floor(Math.random() * IMOUTO_LINES.length)];
+      }
+
+      function renderPhrase(phraseObj) {
+        const display = document.getElementById("phrase-display");
+        const jaDisplay = document.getElementById("ja-display");
+
+        // 高さを固定してリビルド中のレイアウトジャンプを防ぐ
+        const prevHeight = display.offsetHeight;
+        if (prevHeight > 0) display.style.minHeight = prevHeight + 'px';
+
+        display.innerHTML = "";
+        phraseCompleted = false;
+        phraseMissed = false;
+
+        const text = phraseObj.en;
+        // スペースを除いた文字のみchar-boxを作る
+        // charMapで「入力インデックス → 表示インデックス」を対応づける
+        let inputIndex = 0;
+        text.split("").forEach((ch, i) => {
+          if (ch === " ") {
+            // スペースは空白ボックス（入力なし・表示のみ）
+            const spacer = document.createElement("div");
+            spacer.style.width = "30px";
+            spacer.style.height = "70px";
+            spacer.style.flexShrink = "0";
+            display.appendChild(spacer);
+            return;
+          }
+
+          const box = document.createElement("div");
+          box.className = "char-box" + (inputIndex === 0 ? " current" : "");
+          box.dataset.index = inputIndex;
+          box.dataset.char = ch;
+          box.textContent = ch;
+
+          const popup = document.createElement("div");
+          popup.className = "imouto-popup";
+          popup.dataset.popupIndex = inputIndex;
+          const img = document.createElement("img");
+          img.src = getRandomChar();
+          popup.appendChild(img);
+          box.appendChild(popup);
+
+          const bubble = document.createElement("div");
+          bubble.className = "speech-bubble";
+          bubble.dataset.bubbleIndex = inputIndex;
+          box.appendChild(bubble);
+
+          display.appendChild(box);
+          inputIndex++;
+        });
+
+        // ja訳表示（テキストだけ差し替え、パネルは動かさない）
+        jaDisplay.textContent = phraseObj.ja || "";
+        jaDisplay.classList.add("visible");
+
+        updateProgress();
+      }
+
+      function popImouto(index, line) {
+        const popup = document.querySelector(`[data-popup-index="${index}"]`);
+        const bubble = document.querySelector(`[data-bubble-index="${index}"]`);
+
+        if (popup) {
+          // 新しいキャラに変える
+          popup.querySelector("img").src = getRandomChar();
+          popup.classList.remove("pop");
+          void popup.offsetWidth;
+          popup.classList.add("pop");
+        }
+
+        if (bubble) {
+          bubble.textContent = line;
+          bubble.classList.remove("pop");
+          void bubble.offsetWidth;
+          bubble.classList.add("pop");
+        }
+
+        // スパークル
+        const box = document.querySelector(`[data-index="${index}"]`);
+        if (box) {
+          const rect = box.getBoundingClientRect();
+          for (let i = 0; i < 3; i++) {
+            setTimeout(() => {
+              const s = document.createElement("div");
+              s.className = "sparkle";
+              s.textContent = ["✨", "🎀", "⭐", "💖", "🌸"][
+                Math.floor(Math.random() * 5)
+              ];
+              s.style.left = rect.left + Math.random() * rect.width + "px";
+              s.style.top = rect.top + Math.random() * rect.height + "px";
+              document.body.appendChild(s);
+              setTimeout(() => s.remove(), 800);
+            }, i * 100);
+          }
+        }
+      }
+
+      function updateProgress() {
+        const phraseObj = phrases[currentPhraseIndex];
+        document.getElementById("progress").textContent =
+          `${currentPhraseIndex + 1} / ${phrases.length}  |  ${phraseObj.en}`;
+      }
+
+      function nextPhrase() {
+        phraseCompleted = false;
+        checkLevelUp((didLevelUp) => {
+          // レベルアップした場合は演出完了後にrenderPhrase（checkLevelUp内で呼ばれる）
+          // レベルアップなしの場合はここで即座に次フレーズへ
+          if (!didLevelUp) {
+            currentPhraseIndex = (currentPhraseIndex + 1) % phrases.length;
+            currentCharIndex = 0;
+            renderPhrase(phrases[currentPhraseIndex]);
+          } else {
+            // レベルアップ時：phrases/indexはcheckLevelUp内でリセット済み
+            currentCharIndex = 0;
+            renderPhrase(phrases[currentPhraseIndex]);
+          }
+        });
+      }
+
+      // document全体でキー入力を検知（入力窓不要）
+      document.addEventListener("keydown", (e) => {
+        // 特殊キーは無視
+        if (e.key.length !== 1) return;
+        if (e.ctrlKey || e.altKey || e.metaKey) return;
+        e.preventDefault();
+
+        if (phraseCompleted || gameOver) return;
+
+        const phraseObj = phrases[currentPhraseIndex];
+        // スペースを除いた入力対象文字列
+        const inputStr = phraseObj.en.replace(/ /g, "");
+        const typed = e.key.toLowerCase();
+        const expected = inputStr[currentCharIndex].toLowerCase();
+
+        const boxes = document.querySelectorAll(".char-box");
+
+        if (typed === expected) {
+          // 正解！
+          const box = boxes[currentCharIndex];
+          box.classList.remove("current", "wrong");
+          box.classList.add("done");
+
+          popImouto(currentCharIndex, getRandomLine());
+          score += Math.floor(10 * getComboMultiplier(combo));
+          totalChars++;
+          document.getElementById("score").textContent = score;
+          updateNextLevelDisplay();
+
+          // コンボ加算
+          combo++;
+          if (combo > maxCombo) maxCombo = combo;
+          // 200コンボ達成でミスカウントリセット（仕様書5）
+          if (combo === 200) {
+            miss = 0;
+            document.getElementById("miss").textContent = miss;
+            document.getElementById("miss-new").textContent = miss;
+          }
+          updateComboDisplay();
+
+          currentCharIndex++;
+
+          if (currentCharIndex >= inputStr.length) {
+            // フレーズ完了！
+            phraseCompleted = true;
+
+            if (!phraseMissed) {
+              // ノーミス！全char-boxから一斉ポップ（15msずつ波紋）
+              boxes.forEach((box, idx) => {
+                setTimeout(() => {
+                  const popup = box.querySelector('.imouto-popup');
+                  const bubble = box.querySelector('.speech-bubble');
+                  if (popup) {
+                    popup.querySelector('img').src = getRandomChar();
+                    popup.classList.remove('pop');
+                    void popup.offsetWidth;
+                    popup.classList.add('pop');
+                  }
+                  if (bubble) {
+                    const perfectLines = ['パーフェクト！','ノーミス！！','すごい！！','天才！！','やばい！！','神！！'];
+                    bubble.textContent = perfectLines[idx % perfectLines.length];
+                    bubble.classList.remove('pop');
+                    void bubble.offsetWidth;
+                    bubble.classList.add('pop');
+                  }
+                }, idx * 15);
+              });
+              setTimeout(() => { nextPhrase(); }, 500);
+            } else {
+              // 通常：すぐ次へ
+              setTimeout(() => { nextPhrase(); }, 500);
+            }
+          } else {
+            // 次の文字をハイライト
+            boxes[currentCharIndex].classList.add("current");
+          }
+        } else {
+          // ミス！コンボリセット
+          const box = boxes[currentCharIndex];
+          box.classList.add("wrong");
+          setTimeout(() => box.classList.remove("wrong"), 300);
+          miss++;
+          phraseMissed = true;
+          phraseMissed = true;
+          document.getElementById("miss").textContent = miss;
+          document.getElementById("miss-new").textContent = miss;
+          combo = 0;
+          updateComboDisplay();
+
+          if (!debugMode) {
+            // 20ミスでゲームオーバー
+            if (miss >= 20) {
+              triggerGameOver();
+              return;
+            }
+            // 7ミスでレベルダウン（Lv1〜3のみ）
+            const downgradable = ['lv1', 'lv2', 'lv3'];
+            if (miss % 7 === 0 && downgradable.includes(currentLevel)) {
+              const idx = LEVEL_ORDER.indexOf(currentLevel);
+              if (idx > 0) {
+                currentLevel = LEVEL_ORDER[idx - 1];
+                phrases = [...PHRASES[currentLevel]].sort(() => Math.random() - 0.5);
+                currentPhraseIndex = 0;
+                currentCharIndex = 0;
+                document.getElementById('level-display').textContent = LEVEL_LABELS[currentLevel];
+                updateNextLevelDisplay();
+                renderPhrase(phrases[currentPhraseIndex]);
+                return;
+              }
+            }
+          }
+        }
+      });
+
+      function getResultMessage(level, maxCombo, miss, totalChars) {
+        // levelを数値に変換
+        const levelNum = { lv1:1, lv2:2, lv3:3, lv4:4, final:5 }[level] || 1;
+        const finalCleared = (level === 'final');
+        const noMiss = (miss === 0);
+
+        // ノーミス完走（最優先）
+        if (noMiss && finalCleared) {
+          const m = RESULT_MESSAGES.find(r => r.level === 5 && r.miss[0] === 0 && r.miss[1] === 0);
+          if (m) return m.text;
+        }
+
+        // 優先順位順にマッチング
+        const candidates = RESULT_MESSAGES.filter(r => {
+          if (r.level !== levelNum) return false;
+          if (maxCombo < r.maxCombo[0] || maxCombo > r.maxCombo[1]) return false;
+          if (miss < r.miss[0] || miss > r.miss[1]) return false;
+          return true;
+        });
+
+        if (candidates.length === 0) {
+          // フォールバック：同レベルの最初のもの
+          const fb = RESULT_MESSAGES.find(r => r.level === levelNum);
+          return fb ? fb.text : 'お疲れさまでした';
+        }
+        return candidates[Math.floor(Math.random() * candidates.length)].text;
+      }
+
+      function triggerGameOver() {
+        gameOver = true;
+        const levelNum = { lv1:'Lv.1', lv2:'Lv.2', lv3:'Lv.3', lv4:'Lv.4', final:'FINAL' }[currentLevel] || 'Lv.1';
+
+        // 各値を埋める
+        document.getElementById('result-score-value').textContent = score.toLocaleString();
+        document.getElementById('rs-combo').textContent = maxCombo.toLocaleString();
+        document.getElementById('rs-miss').textContent = miss;
+        document.getElementById('rs-level').textContent = levelNum;
+        document.getElementById('rs-chars').textContent = totalChars.toLocaleString();
+        document.getElementById('result-comment').textContent = getResultMessage(currentLevel, maxCombo, miss, totalChars);
+
+        // アニメーションをリセットして再生
+        const screen = document.getElementById('gameover-screen');
+        screen.querySelectorAll('[style*="animation"], #result-title, #result-score-label, #result-score-value, #result-stats, #result-comment, #result-buttons, #result-sister').forEach(el => {
+          el.style.animation = 'none';
+          el.offsetHeight; // reflow
+          el.style.animation = '';
+        });
+
+        screen.style.display = 'block';
+      }
+
+      function restartGame() {
+        // 全状態リセット
+        gameOver = false;
+        currentLevel = 'lv1';
+        phrases = [...PHRASES[currentLevel]].sort(() => Math.random() - 0.5);
+        currentPhraseIndex = 0;
+        currentCharIndex = 0;
+        score = 0;
+        miss = 0;
+        combo = 0;
+        maxCombo = 0;
+        totalChars = 0;
+        phraseCompleted = false;
+        document.getElementById('score').textContent = 0;
+        document.getElementById('miss').textContent = 0;
+        document.getElementById('miss-new').textContent = 0;
+        document.getElementById('level-display').textContent = '1';
+        document.getElementById('gameover-screen').style.display = 'none';
+        updateNextLevelDisplay();
+        updateComboDisplay();
+        initBackground();
+        renderPhrase(phrases[currentPhraseIndex]);
+      }
+
+      function getComboFontSize(combo) {
+        // 100コンボごとにサイズアップ、上限5rem
+        const step = Math.floor(combo / 100);
+        return Math.min(2 + step * 0.5, 5) + "rem";
+      }
+
+      function updateComboDisplay() {
+        const el = document.querySelector("#combo-display .combo-text");
+        if (combo >= 2) {
+          el.textContent = combo + " combo!!";
+          el.classList.remove("hidden");
+
+          // 100コンボごとにフォントサイズアップ
+          el.style.fontSize = getComboFontSize(combo);
+
+          // 100の倍数コンボで爆発エフェクト＋カットイン
+          if (combo % 100 === 0) {
+            // 爆発CSS強化
+            el.style.animation = "none";
+            void el.offsetWidth;
+            el.style.animation = "comboRainbow 1.5s linear infinite, comboBurst 0.5s ease-out";
+
+            // 爆発パーティクル
+            const rect = el.getBoundingClientRect();
+            const emojis = ["🎉","🎊","✨","💥","⭐","🌟","🔥","💖"];
+            for (let i = 0; i < 12; i++) {
+              setTimeout(() => {
+                const s = document.createElement("div");
+                s.className = "sparkle";
+                s.textContent = emojis[Math.floor(Math.random() * emojis.length)];
+                s.style.left = rect.left + rect.width / 2 + (Math.random() - 0.5) * 200 + "px";
+                s.style.top  = rect.top  + rect.height / 2 + (Math.random() - 0.5) * 100 + "px";
+                s.style.fontSize = (1.5 + Math.random()) + "rem";
+                document.body.appendChild(s);
+                setTimeout(() => s.remove(), 1000);
+              }, i * 60);
+            }
+
+            // カットイン発火
+            triggerCutIn();
+          } else {
+            // 通常のpopアニメ
+            el.style.animation = "none";
+            void el.offsetWidth;
+            el.style.animation = "";
+          }
+        } else {
+          el.classList.add("hidden");
+        }
+      }
+
+      function initBackground() {
+        const bgLayer = document.getElementById('bg-layer');
+        bgLayer.innerHTML = '';
+        const slide = document.createElement('div');
+        slide.className = 'bg-slide';
+        slide.style.background = 'linear-gradient(135deg,#1a0a2e,#16213e,#0f3460)';
+        slide.style.backgroundImage = `url('${LEVEL_BG['lv1']}')`;
+        slide.style.backgroundSize = 'cover';
+        slide.style.backgroundRepeat = 'no-repeat';
+        slide.style.backgroundPosition = 'center top';
+        bgLayer.appendChild(slide);
+      }
+
+      // 初期化
+      initBackground();
+      renderPhrase(phrases[currentPhraseIndex]);
+    </script>
+  </body>
+</html>
