@@ -511,7 +511,7 @@
       #result-sister {
         position: absolute;
         top: 50%;
-        right: -20px;
+        right: 5%;
         transform: translateY(-50%);
         height: min(75vh, 600px);
         width: auto;
@@ -600,6 +600,43 @@
       @keyframes cutinOutRight {
         from { transform: translateX(0); }
         to   { transform: translateX(100%); }
+      }
+
+      /* dancing chars */
+      .dance-char {
+        position: fixed;
+        pointer-events: none;
+        z-index: 1;
+        width: 300px;
+        height: 300px;
+        image-rendering: auto;
+      }
+      @keyframes danceBounce {
+        0%   { transform: translateY(0px) rotate(-5deg) scale(1); }
+        25%  { transform: translateY(-18px) rotate(3deg) scale(1.04); }
+        50%  { transform: translateY(0px) rotate(5deg) scale(1); }
+        75%  { transform: translateY(-10px) rotate(-3deg) scale(1.02); }
+        100% { transform: translateY(0px) rotate(-5deg) scale(1); }
+      }
+      @keyframes dancePopIn {
+        0%   { transform: scale(0) rotate(-20deg); opacity: 0; }
+        60%  { transform: scale(1.15) rotate(5deg); opacity: 1; }
+        100% { transform: scale(1) rotate(0deg);   opacity: 1; }
+      }
+
+      /* combo char burst */
+      .combo-char {
+        position: fixed;
+        width: 64px;
+        height: 64px;
+        pointer-events: none;
+        z-index: 99999;
+        image-rendering: pixelated;
+      }
+      @keyframes comboCharFly {
+        0%   { transform: translate(0, 0) rotate(0deg) scale(1);   opacity: 1; }
+        80%  { opacity: 1; }
+        100% { transform: translate(var(--fly-x), var(--fly-y)) rotate(var(--fly-r)) scale(0.5); opacity: 0; }
       }
 
       /* combo display */
@@ -725,7 +762,55 @@
         from { transform: translateX(100%); }
         to   { transform: translateX(0); }
       }
-      /* ===== LV START ボン演出 ===== */
+      /* ===== スタート画面 ===== */
+      #start-screen {
+        position: fixed;
+        inset: 0;
+        z-index: 100;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        background: linear-gradient(135deg, #1a0a2e 0%, #16213e 50%, #0f3460 100%);
+        transition: opacity 0.6s ease;
+      }
+      #start-screen.fade-out {
+        opacity: 0;
+        pointer-events: none;
+      }
+      #start-btn {
+        background: none;
+        border: none;
+        cursor: pointer;
+        padding: 0;
+        outline: none;
+        transition: transform 0.2s, filter 0.2s;
+        filter: drop-shadow(0 8px 24px rgba(255,100,180,0.4));
+      }
+      #start-btn:hover {
+        transform: scale(1.06);
+        filter: drop-shadow(0 8px 40px rgba(255,157,226,0.8)) brightness(1.08);
+      }
+      #start-btn:active {
+        transform: scale(0.96);
+      }
+      #start-btn img {
+        width: 340px;
+        height: auto;
+        display: block;
+      }
+
+      #start-title {
+        margin-top: 16px;
+        font-size: 2rem;
+        font-weight: bold;
+        color: #ff9de2;
+        letter-spacing: 0.2em;
+        text-shadow: 0 0 16px #ff6eb4, 2px 2px 8px rgba(0,0,0,0.8);
+        font-family: "Segoe UI", sans-serif;
+        text-align: center;
+      }
+
+
       #levelup-banner {
         position: fixed;
         inset: 0;
@@ -796,7 +881,7 @@
     <div id="gameover-screen">
       <div id="result-bg"></div>
       <div id="result-lines"></div>
-      <img id="result-sister" src="Sister_results.png" alt="妹">
+      <img id="result-sister" src="results/Sister_results_lv1.png" alt="妹">
       <div id="result-content">
         <div id="result-title">R E S U L T</div>
         <div id="result-score-label">SCORE</div>
@@ -826,6 +911,16 @@
         <div id="result-buttons">
           <button class="result-btn result-btn-primary" onclick="restartGame()">もう一回</button>
         </div>
+      </div>
+    </div>
+
+    <!-- スタート画面 -->
+    <div id="start-screen">
+      <div style="display:flex; flex-direction:column; align-items:center;">
+        <button id="start-btn" onclick="startGame()">
+          <img src="Sister_start.png" alt="START">
+        </button>
+        <div id="start-title">happytyping</div>
       </div>
     </div>
 
@@ -1103,6 +1198,73 @@
         });
       }
 
+      // -------------------------------------------------------
+      // 音声再生（妹がjaを読む）
+      // -------------------------------------------------------
+      let voiceEnabled = true;
+      let currentVoiceAudio = null;
+
+      let firstKeyPressed = false;
+
+      function playVoice(phraseObj) {
+        if (!voiceEnabled) return;
+
+        // 現在再生中の音声を止める
+        if (currentVoiceAudio) {
+          currentVoiceAudio.pause();
+          currentVoiceAudio = null;
+        }
+
+        // PHRASES[currentLevel]内でのインデックスを取得
+        const levelPhrases = PHRASES[currentLevel];
+        // シャッフル済みphrasesではなく元のPHRASES配列で検索
+        const idx = levelPhrases.findIndex(p => p.en === phraseObj.en && p.ja === phraseObj.ja);
+        if (idx === -1) return;
+
+        const num = String(idx + 1).padStart(3, '0');
+        const filename = `voice/${currentLevel}_${num}.wav`;
+
+        const audio = new Audio(filename);
+        currentVoiceAudio = audio;
+
+        // 初回はユーザー操作後まで保留
+        if (!firstKeyPressed) {
+          pendingVoiceAudio = audio;
+          return;
+        }
+
+        audio.play().catch(() => {});
+      }
+
+      let pendingVoiceAudio = null;
+
+      // ESCキーで音声オンオフ切り替え
+      document.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape') {
+          voiceEnabled = !voiceEnabled;
+          showVoiceToggleHint(voiceEnabled);
+        }
+      });
+
+      function showVoiceToggleHint(enabled) {
+        let hint = document.getElementById('voice-hint');
+        if (!hint) {
+          hint = document.createElement('div');
+          hint.id = 'voice-hint';
+          hint.style.cssText = `
+            position: fixed; bottom: 16px; left: 50%; transform: translateX(-50%);
+            background: rgba(0,0,0,0.75); color: #fff; padding: 6px 18px;
+            border-radius: 20px; font-size: 0.85rem; z-index: 9999;
+            pointer-events: none; transition: opacity 0.4s;
+          `;
+          document.body.appendChild(hint);
+        }
+        hint.textContent = enabled ? '🔊 音声 ON' : '🔇 音声 OFF';
+        hint.style.opacity = '1';
+        clearTimeout(hint._timer);
+        hint._timer = setTimeout(() => { hint.style.opacity = '0'; }, 1500);
+      }
+
       // phrases.jsのPHRASES.lv1を使用
       let currentLevel = 'lv1';
       let phrasePool = [...PHRASES[currentLevel]].sort(() => Math.random() - 0.5);
@@ -1215,6 +1377,7 @@
       let currentCharIndex = 0;
       let score = 0;
       let miss = 0;
+      let totalMiss = 0;
       let combo = 0;
       let maxCombo = 0;
       let totalChars = 0;
@@ -1239,6 +1402,11 @@
           if (e.key === 'ArrowUp') {
             e.preventDefault();
             combo += 10;
+            if (combo > 0 && combo % 100 === 0) {
+              miss = 0;
+              document.getElementById("miss").textContent = miss;
+              document.getElementById("miss-new").textContent = miss;
+            }
             updateComboDisplay();
             document.getElementById('score').textContent = score;
           } else if (e.key === 'ArrowDown') {
@@ -1313,6 +1481,9 @@
         jaDisplay.textContent = phraseObj.ja || "";
         jaDisplay.classList.add("visible");
 
+        // 妹の音声再生
+        playVoice(phraseObj);
+
         updateProgress();
       }
 
@@ -1385,6 +1556,15 @@
         if (e.ctrlKey || e.altKey || e.metaKey) return;
         e.preventDefault();
 
+        // 初回キー入力で保留中の音声を再生
+        if (!firstKeyPressed) {
+          firstKeyPressed = true;
+          if (pendingVoiceAudio) {
+            pendingVoiceAudio.play().catch(() => {});
+            pendingVoiceAudio = null;
+          }
+        }
+
         if (phraseCompleted || gameOver) return;
 
         const phraseObj = phrases[currentPhraseIndex];
@@ -1410,8 +1590,8 @@
           // コンボ加算
           combo++;
           if (combo > maxCombo) maxCombo = combo;
-          // 200コンボ達成でミスカウントリセット（仕様書5）
-          if (combo === 200) {
+          // 100コンボごとにミスカウントリセット（表示用のみ、totalMissは保持）
+          if (combo > 0 && combo % 100 === 0) {
             miss = 0;
             document.getElementById("miss").textContent = miss;
             document.getElementById("miss-new").textContent = miss;
@@ -1460,11 +1640,13 @@
           box.classList.add("wrong");
           setTimeout(() => box.classList.remove("wrong"), 300);
           miss++;
+          totalMiss++;
           phraseMissed = true;
           phraseMissed = true;
           document.getElementById("miss").textContent = miss;
           document.getElementById("miss-new").textContent = miss;
           combo = 0;
+          clearDanceChars();
           updateComboDisplay();
 
           if (!debugMode) {
@@ -1522,15 +1704,24 @@
 
       function triggerGameOver() {
         gameOver = true;
+        clearDanceChars();
         const levelNum = { lv1:'Lv.1', lv2:'Lv.2', lv3:'Lv.3', lv4:'Lv.4', final:'FINAL' }[currentLevel] || 'Lv.1';
+
+        // 妹画像をレベルに応じて切り替え
+        const sisterImg = { lv1:'lv1', lv2:'lv2', lv3:'lv3', lv4:'lv4', final:'final' }[currentLevel] || 'lv1';
+        const sisterEl = document.getElementById('result-sister');
+        const sisterSrc = `results/Sister_results_${sisterImg}.png`;
+        sisterEl.onerror = () => { sisterEl.style.display = 'none'; };
+        sisterEl.onload  = () => { sisterEl.style.display = ''; };
+        sisterEl.src = sisterSrc;
 
         // 各値を埋める
         document.getElementById('result-score-value').textContent = score.toLocaleString();
         document.getElementById('rs-combo').textContent = maxCombo.toLocaleString();
-        document.getElementById('rs-miss').textContent = miss;
+        document.getElementById('rs-miss').textContent = totalMiss;
         document.getElementById('rs-level').textContent = levelNum;
         document.getElementById('rs-chars').textContent = totalChars.toLocaleString();
-        document.getElementById('result-comment').textContent = getResultMessage(currentLevel, maxCombo, miss, totalChars);
+        document.getElementById('result-comment').textContent = getResultMessage(currentLevel, maxCombo, totalMiss, totalChars);
 
         // アニメーションをリセットして再生
         const screen = document.getElementById('gameover-screen');
@@ -1545,6 +1736,7 @@
 
       function restartGame() {
         // 全状態リセット
+        clearDanceChars();
         gameOver = false;
         currentLevel = 'lv1';
         phrases = [...PHRASES[currentLevel]].sort(() => Math.random() - 0.5);
@@ -1552,6 +1744,7 @@
         currentCharIndex = 0;
         score = 0;
         miss = 0;
+        totalMiss = 0;
         combo = 0;
         maxCombo = 0;
         totalChars = 0;
@@ -1573,6 +1766,121 @@
         return Math.min(2 + step * 0.5, 5) + "rem";
       }
 
+      // comboフォルダのキャラ画像リスト（27枚）
+      const COMBO_CHARS = Array.from({length: 26}, (_, i) =>
+        `combo/combo${String(i).padStart(3, '0')}.png`
+      );
+
+      // dancing chars management
+      const COMBO_CHARS_MAX = 26;
+      let danceChars = [];
+
+      function repositionDanceChars() {
+        const size = 150;
+        const topChars    = danceChars.filter((_, i) => Math.floor(i / 2) % 2 === 0);
+        const bottomChars = danceChars.filter((_, i) => Math.floor(i / 2) % 2 === 1);
+
+        [topChars, bottomChars].forEach((row, rowIdx) => {
+          if (row.length === 0) return;
+          const isTop = rowIdx === 0;
+          const y = isTop ? size * 0.75 : window.innerHeight - size * 1.3;
+          const screenW = window.innerWidth;
+
+          // 中央から外側に広がる配置
+          // キャラ間隔は画面幅に応じて調整（最大200px）
+          const gap = Math.min(200, (screenW - size) / Math.max(row.length, 1));
+          const totalWidth = size + gap * (row.length - 1);
+          const startX = (screenW - totalWidth) / 2;
+
+          row.forEach((d, i) => {
+            const x = startX + i * gap;
+            d.el.style.left = x + 'px';
+            d.el.style.top  = y + 'px';
+          });
+        });
+      }
+
+      function addDanceChars() {
+        const size = 150;
+        const addCount = Math.min(2, COMBO_CHARS_MAX - danceChars.length);
+
+        const usedSrcs = danceChars.map(d => d.src);
+        const available = COMBO_CHARS.filter(c => !usedSrcs.includes(c));
+        const pool = (available.length > 0 ? available : [...COMBO_CHARS])
+                       .sort(() => Math.random() - 0.5);
+
+        const currentBatch = Math.floor(danceChars.length / 2);
+        const isTop = currentBatch % 2 === 0;
+        const y = isTop ? size * 0.75 : window.innerHeight - size * 1.3;
+
+        for (let i = 0; i < addCount; i++) {
+          const src = pool[i % pool.length];
+          const dur   = (1.8 + Math.random() * 0.8).toFixed(2);
+          const delay = (Math.random() * 0.3).toFixed(2);
+
+          const el = document.createElement('img');
+          el.className = 'dance-char';
+          el.src = src;
+          el.style.cssText = `
+            left: 0px;
+            top: ${y}px;
+            width: ${size}px;
+            height: ${size}px;
+            animation: dancePopIn 0.4s ease-out forwards, danceBounce ${dur}s ${delay}s ease-in-out infinite;
+          `;
+          document.body.appendChild(el);
+          danceChars.push({ el, src });
+        }
+        repositionDanceChars();
+      }
+
+      window.addEventListener('resize', repositionDanceChars);
+
+      function clearDanceChars() {
+        danceChars.forEach(d => d.el.remove());
+        danceChars = [];
+      }
+
+      function fireComboChars() {
+        const count = 12 + Math.floor(Math.random() * 6); // 12〜17体
+        const cx = window.innerWidth / 2;
+        const cy = window.innerHeight + 50; // 画面外下から発射
+
+        // シャッフルして重複なくランダム選択
+        const shuffled = [...COMBO_CHARS].sort(() => Math.random() - 0.5);
+
+        for (let i = 0; i < count; i++) {
+          const el = document.createElement('img');
+          el.className = 'combo-char';
+          el.src = shuffled[i % shuffled.length];
+
+          // クラッカー：下から上に扇形（-160度〜-20度）
+          const spreadMin = -160 * Math.PI / 180;
+          const spreadMax = -20  * Math.PI / 180;
+          const angle = spreadMin + (spreadMax - spreadMin) * (i / (count - 1)) + (Math.random() - 0.5) * 0.25;
+
+          // 飛距離をバラバラに（画面上部まで届く距離）
+          const dist = window.innerHeight * (0.7 + Math.random() * 0.6);
+          const flyX = Math.cos(angle) * dist;
+          const flyY = Math.sin(angle) * dist;
+          const flyR = (Math.random() - 0.5) * 540 + 'deg';
+          const size = 320 + Math.floor(Math.random() * 80); // 320〜400px
+
+          el.style.cssText = `
+            left: ${cx - size / 2}px;
+            top:  ${cy - size / 2}px;
+            width: ${size}px;
+            height: ${size}px;
+            --fly-x: ${flyX}px;
+            --fly-y: ${flyY}px;
+            --fly-r: ${flyR};
+            animation: comboCharFly 2.2s cubic-bezier(0.1, 0.6, 0.2, 1) forwards;
+          `;
+          document.body.appendChild(el);
+          setTimeout(() => el.remove(), 2250);
+        }
+      }
+
       function updateComboDisplay() {
         const el = document.querySelector("#combo-display .combo-text");
         if (combo >= 2) {
@@ -1581,6 +1889,11 @@
 
           // 100コンボごとにフォントサイズアップ
           el.style.fontSize = getComboFontSize(combo);
+
+          // 50コンボごとに2体追加（max26体）
+          if (combo % 50 === 0) {
+            addDanceChars();
+          }
 
           // 100の倍数コンボで爆発エフェクト＋カットイン
           if (combo % 100 === 0) {
@@ -1629,6 +1942,18 @@
         slide.style.backgroundRepeat = 'no-repeat';
         slide.style.backgroundPosition = 'center top';
         bgLayer.appendChild(slide);
+      }
+
+      function startGame() {
+        firstKeyPressed = true;
+        const screen = document.getElementById('start-screen');
+        screen.classList.add('fade-out');
+        setTimeout(() => { screen.style.display = 'none'; }, 600);
+        // 1問目の音声再生
+        if (pendingVoiceAudio) {
+          pendingVoiceAudio.play().catch(() => {});
+          pendingVoiceAudio = null;
+        }
       }
 
       // 初期化
